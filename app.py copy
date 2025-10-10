@@ -1,0 +1,280 @@
+from flask import Flask, render_template, Response, jsonify, request, session, redirect, url_for, flash
+import cv2
+import pickle
+import numpy as np
+from sklearn.svm import SVC
+from sklearn.preprocessing import LabelEncoder
+import face_recognition
+import requests
+import time
+import json
+from datetime import datetime
+import os
+from functools import wraps
+
+# Load trained model
+try:
+    model = pickle.load(open("model/svm_model.pkl", "rb"))
+    label_encoder = pickle.load(open("model/label_encoder.pkl", "rb"))
+    print("Model berhasil dimuat")
+except FileNotFoundError:
+    print("Model tidak ditemukan. Pastikan file model/svm_model.pkl dan model/label_encoder.pkl ada.")
+    model = None
+    label_encoder = None
+
+app = Flask(__name__)
+app.secret_key = 'attendance_system_secret_key_2025'  # Ganti dengan secret key yang lebih aman untuk produksi
+
+# Konfigurasi login
+ADMIN_CREDENTIALS = {
+    'username': 'admin',
+    'password': '12345'
+}
+
+# Konfigurasi API Node.js
+NODE_API_URL = "http://localhost:3000/api"
+ATTENDANCE_COOLDOWN = 60  # Detik, untuk mencegah duplikasi absensi
+
+# Menyimpan waktu terakhir absensi untuk setiap mahasiswa
+last_attendance_time = {}
+
+# Decorator untuk memerlukan login
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session or not session['logged_in']:
+            flash('Anda harus login terlebih dahulu', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def send_attendance(nim, name, status="Tepat Waktu"):
+    """Kirim data absensi ke API Node.js"""
+    current_time = time.time()
+    
+    # Cek apakah mahasiswa sudah absen dalam 60 detik terakhir
+    if nim in last_attendance_time and current_time - last_attendance_time[nim] < ATTENDANCE_COOLDOWN:
+        return False
+    
+    # Kirim data ke API Node.js
+    try:
+        payload = {
+            "nim": nim,
+            "class_id": 1,  # ID kelas default
+            "status": status
+        }
+        
+        response = requests.post(f"{NODE_API_URL}/attendance", json=payload)
+        
+        if response.status_code == 200:
+            last_attendance_time[nim] = current_time
+            print(f"Absensi berhasil: {nim} - {name}")
+            return True
+        else:
+            print(f"Gagal mengirim absensi: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"Error mengirim absensi: {str(e)}")
+        return False
+
+def gen_frames():
+    if model is None or label_encoder is None:
+        # Jika model tidak tersedia, tampilkan pesan error
+        while True:
+            # Buat frame kosong dengan pesan error
+            frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(frame, "Model tidak tersedia", (150, 220), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            cv2.putText(frame, "Pastikan file model ada", (130, 260), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time.sleep(0.1)
+    
+    video_capture = cv2.VideoCapture(0)
+    recognized_faces = {}  # Untuk tracking wajah yang sudah dikenali
+    frame_count = 0
+    
+    while True:
+        success, frame = video_capture.read()
+        if not success:
+            break
+
+        # Proses setiap 2 frame untuk performa
+        if frame_count % 2 != 0:
+            frame_count += 1
+            continue
+            
+        frame_count += 1
+        
+        # Resize frame untuk performa lebih baik
+        small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
+        rgb_small_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+        
+        face_locations = face_recognition.face_locations(rgb_small_frame)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+
+        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+            # Skala ulang koordinat wajah ke ukuran frame asli
+            top *= 4
+            right *= 4
+            bottom *= 4
+            left *= 4
+            
+            face_encoding = np.array(face_encoding).reshape(1, -1)
+            name = "Unknown"
+            nim = "Unknown"
+
+            try:
+                pred = model.predict(face_encoding)
+                name = label_encoder.inverse_transform(pred)[0]
+                
+                # Ekstrak NIM dari nama (format: "NIM - Nama")
+                if " - " in name:
+                    nim, name = name.split(" - ", 1)
+                
+                # Jika wajah dikenali dan belum tercatat absen
+                current_time = time.time()
+                if nim != "Unknown" and (nim not in recognized_faces or 
+                                        current_time - recognized_faces[nim] > ATTENDANCE_COOLDOWN):
+                    
+                    # Tentukan status berdasarkan waktu
+                    now = datetime.now()
+                    status = "Tepat Waktu" if now.hour < 8 or (now.hour == 8 and now.minute < 15) else "Terlambat"
+                    
+                    # Kirim absensi ke API Node.js
+                    if send_attendance(nim, name, status):
+                        recognized_faces[nim] = current_time
+                        
+                    # Tambahkan status ke tampilan
+                    name = f"{nim} - {name} ({status})"
+                    
+            except Exception as e:
+                print(f"Error saat prediksi: {str(e)}")
+
+            # Gambar kotak dan nama
+            color = (0, 255, 0) if nim != "Unknown" else (0, 0, 255)
+            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+            cv2.putText(frame, name, (left, top - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+
+        # Tambahkan timestamp dan status login
+        cv2.putText(frame, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        cv2.putText(frame, f"Admin: {session.get('username', 'Guest')}",
+                    (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        if (username == ADMIN_CREDENTIALS['username'] and 
+            password == ADMIN_CREDENTIALS['password']):
+            session['logged_in'] = True
+            session['username'] = username
+            session['login_time'] = datetime.now().isoformat()
+            flash('Login berhasil!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Username atau password salah!', 'error')
+            
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    session.clear()
+    flash('Anda telah logout', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/')
+@login_required
+def index():
+    return render_template('index.html')
+
+@app.route('/video_feed')
+@login_required
+def video_feed():
+    return Response(gen_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    try:
+        # Ambil data absensi hari ini dari Node.js API
+        response = requests.get(f"{NODE_API_URL}/attendance/today")
+        if response.status_code == 200:
+            attendance_data = response.json().get('data', [])
+        else:
+            attendance_data = []
+            
+        # Ambil informasi kelas
+        class_response = requests.get(f"{NODE_API_URL}/class/1")
+        if class_response.status_code == 200:
+            class_info = class_response.json().get('data', {})
+        else:
+            class_info = {}
+            
+        return render_template('dashboard.html', 
+                              attendance=attendance_data, 
+                              class_info=class_info,
+                              connected=(response.status_code == 200))
+    except Exception as e:
+        print(f"Error loading dashboard: {str(e)}")
+        return render_template('dashboard.html', 
+                              attendance=[], 
+                              class_info={},
+                              connected=False)
+
+@app.route('/status')
+@login_required
+def status():
+    """Endpoint untuk memeriksa status integrasi dengan Node.js"""
+    try:
+        response = requests.get(f"{NODE_API_URL}/class/1")
+        if response.status_code == 200:
+            return jsonify({
+                "status": "connected", 
+                "message": "Terhubung ke sistem absensi",
+                "admin": session.get('username'),
+                "login_time": session.get('login_time')
+            })
+        else:
+            return jsonify({"status": "error", "message": "Gagal terhubung ke sistem absensi"})
+    except:
+        return jsonify({"status": "error", "message": "Sistem absensi tidak tersedia"})
+
+@app.route('/settings')
+@login_required
+def settings():
+    """Halaman pengaturan sistem"""
+    return render_template('settings.html')
+
+# Error handlers
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('error.html', error="Halaman tidak ditemukan"), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('error.html', error="Terjadi kesalahan internal"), 500
+
+if __name__ == '__main__':
+    # Buat folder templates jika belum ada
+    if not os.path.exists('templates'):
+        os.makedirs('templates')
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)

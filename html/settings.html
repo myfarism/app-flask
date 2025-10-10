@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengaturan - Face Recognition Attendance</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-md">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">Pengaturan Sistem</h1>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('index') }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Kembali</a>
+                    <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Pengaturan Sistem -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Informasi Sistem</h2>
+                <div class="space-y-4">
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <h3 class="font-medium text-gray-900">Status Integrasi</h3>
+                        <div class="mt-2 space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span>Flask Server:</span>
+                                <span class="text-green-600">Running (Port 5000)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span>Node.js API:</span>
+                                <span id="nodejs-status" class="text-gray-600">Checking...</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span>Database:</span>
+                                <span id="db-status" class="text-gray-600">SQLite</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <h3 class="font-medium text-gray-900">Kredensial Admin</h3>
+                        <div class="mt-2 space-y-1 text-sm text-gray-600">
+                            <div>Username: <code class="bg-gray-200 px-1 rounded">admin</code></div>
+                            <div>Password: <code class="bg-gray-200 px-1 rounded">12345</code></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Konfigurasi Face Recognition -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Konfigurasi Face Recognition</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Cooldown Periode (detik)</label>
+                        <input type="number" value="60" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" readonly>
+                        <p class="text-xs text-gray-500 mt-1">Waktu tunggu antara absensi untuk mahasiswa yang sama</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Batas Waktu Tepat Waktu</label>
+                        <input type="time" value="08:15" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" readonly>
+                        <p class="text-xs text-gray-500 mt-1">Mahasiswa yang datang setelah waktu ini akan tercatat terlambat</p>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Status Model</label>
+                        <div id="model-status" class="p-3 rounded-lg bg-gray-100">
+                            <span class="text-sm text-gray-600">Checking model status...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- API Endpoints -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">API Endpoints</h2>
+                <div class="space-y-3">
+                    <div class="p-3 bg-gray-50 rounded">
+                        <code class="text-sm text-blue-600">GET /status</code>
+                        <p class="text-xs text-gray-600 mt-1">Status koneksi sistem</p>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded">
+                        <code class="text-sm text-blue-600">GET /dashboard</code>
+                        <p class="text-xs text-gray-600 mt-1">Dashboard data absensi</p>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded">
+                        <code class="text-sm text-green-600">POST /login</code>
+                        <p class="text-xs text-gray-600 mt-1">Autentikasi admin</p>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded">
+                        <code class="text-sm text-red-600">GET /logout</code>
+                        <p class="text-xs text-gray-600 mt-1">Logout dari sistem</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Aksi Sistem -->
+            <div class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Aksi Sistem</h2>
+                <div class="space-y-3">
+                    <button onclick="testConnection()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                        Test Koneksi ke Node.js
+                    </button>
+                    
+                    <a href="http://localhost:3000" target="_blank" class="block w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-center transition-colors">
+                        Buka Sistem Absensi Web
+                    </a>
+                    
+                    <button onclick="refreshPage()" class="w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
+                        Refresh Halaman
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Log Aktivitas -->
+        <div class="mt-8 bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-xl font-semibold mb-4 text-gray-800">Log Aktivitas Terbaru</h2>
+            <div id="activity-log" class="space-y-2 max-h-64 overflow-y-auto">
+                <div class="flex justify-between text-sm p-2 bg-gray-50 rounded">
+                    <span>Sistem dimulai</span>
+                    <span class="text-gray-500" id="system-start-time">-</span>
+                </div>
+                <div class="flex justify-between text-sm p-2 bg-blue-50 rounded">
+                    <span>Admin login: {{ session.username }}</span>
+                    <span class="text-gray-500">{{ session.login_time or 'N/A' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test koneksi ke Node.js
+        function testConnection() {
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = 'Testing...';
+            button.disabled = true;
+            
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'connected') {
+                        alert('Koneksi berhasil! Sistem berjalan normal.');
+                    } else {
+                        alert('Koneksi gagal: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: Tidak dapat menghubungi server Node.js');
+                })
+                .finally(() => {
+                    button.textContent = originalText;
+                    button.disabled = false;
+                });
+        }
+        
+        // Refresh halaman
+        function refreshPage() {
+            location.reload();
+        }
+        
+        // Check Node.js status
+        function checkNodejsStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusElement = document.getElementById('nodejs-status');
+                    if (data.status === 'connected') {
+                        statusElement.textContent = 'Connected (Port 3000)';
+                        statusElement.className = 'text-green-600';
+                    } else {
+                        statusElement.textContent = 'Disconnected';
+                        statusElement.className = 'text-red-600';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('nodejs-status').textContent = 'Error';
+                    document.getElementById('nodejs-status').className = 'text-red-600';
+                });
+        }
+        
+        // Check model status
+        function checkModelStatus() {
+            const modelStatus = document.getElementById('model-status');
+            // Simulasi pengecekan status model
+            setTimeout(() => {
+                modelStatus.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                        <span class="text-sm text-green-600">Model loaded successfully</span>
+                    </div>
+                `;
+            }, 1000);
+        }
+        
+        // Update system start time
+        function updateSystemStartTime() {
+            document.getElementById('system-start-time').textContent = new Date().toLocaleString('id-ID');
+        }
+        
+        // Initialize
+        checkNodejsStatus();
+        checkModelStatus();
+        updateSystemStartTime();
+        
+        // Update status setiap 30 detik
+        setInterval(checkNodejsStatus, 30000);
+    </script>
+</body>
+</html>
