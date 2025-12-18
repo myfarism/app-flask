@@ -40,7 +40,6 @@ ATTENDANCE_COOLDOWN = 60
 # Menyimpan waktu terakhir absensi untuk setiap mahasiswa
 last_attendance_time = {}
 
-
 detector = dlib.get_frontal_face_detector()
 sp = dlib.shape_predictor("model\shape_predictor_68_face_landmarks.dat")
 facerec = dlib.face_recognition_model_v1("model\dlib_face_recognition_resnet_model_v1.dat")
@@ -230,89 +229,51 @@ def send_attendance_to_db(nim, name, status="Tepat Waktu"):
 
 def gen_frames():
     global detected_names
+
     while True:
         success, frame = cap.read()
         if not success:
             break
-        
+
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         faces = detector(rgb_frame)
-        
-        with lock:
+
+        with lock:  # Menggunakan lock agar thread-safe
             detected_names.clear()
-            
+
             for face in faces:
                 shape = sp(rgb_frame, face)
                 face_descriptor = facerec.compute_face_descriptor(rgb_frame, shape)
                 face_descriptor = np.array(face_descriptor).reshape(1, -1)
-                
+
                 # Prediksi pakai SVM
                 pred_label = model.predict(face_descriptor)[0]
                 pred_name = label_encoder.inverse_transform([pred_label])[0]
-                
+
                 # Pisahkan nama dan nim (format: nama_nim)
                 nama, nim = "Unknown", "Unknown"
                 if "_" in pred_name:
                     parts = pred_name.split("_", 1)
                     if len(parts) == 2:
                         nama, nim = parts[0], parts[1]
-                
+
                 detected_names.add(pred_name)
-                
-                # Gambar bounding box
+
+                print("Nama:", nama)
+                print("NIM:", nim)
+                print("Label index:", pred_label)
+
+                # Gambar kotak wajah
                 x1, y1, x2, y2 = face.left(), face.top(), face.right(), face.bottom()
-                
-                # Warna hijau untuk wajah dikenali, merah untuk unknown
-                color = (0, 255, 0) if nama != "Unknown" else (0, 0, 255)
-                
-                # Draw rectangle
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                
-                # Siapkan text
-                text_nama = f"{nama}"
-                text_nim = f"NIM: {nim}"
-                
-                # Ukuran font dan thickness
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                font_scale = 0.6
-                thickness = 2
-                
-                # Hitung ukuran teks
-                (text_width_nama, text_height_nama), _ = cv2.getTextSize(text_nama, font, font_scale, thickness)
-                (text_width_nim, text_height_nim), _ = cv2.getTextSize(text_nim, font, font_scale, thickness)
-                
-                # Background untuk nama
-                cv2.rectangle(frame, 
-                            (x1, y1 - text_height_nama - 10), 
-                            (x1 + text_width_nama + 10, y1), 
-                            color, -1)
-                
-                # Text nama (putih)
-                cv2.putText(frame, text_nama, 
-                           (x1 + 5, y1 - 5),
-                           font, font_scale, (255, 255, 255), thickness)
-                
-                # Background untuk NIM
-                cv2.rectangle(frame, 
-                            (x1, y2), 
-                            (x1 + text_width_nim + 10, y2 + text_height_nim + 10), 
-                            color, -1)
-                
-                # Text NIM (putih)
-                cv2.putText(frame, text_nim, 
-                           (x1 + 5, y2 + text_height_nim + 5),
-                           font, font_scale, (255, 255, 255), thickness)
-                
-                # Auto-submit absensi untuk wajah yang dikenali
-                if nama != "Unknown" and nim != "Unknown":
-                    send_attendance_to_db(nim, nama)
-        
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(frame, f"{nama} ({nim})", (x1, y1 - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
         _, buffer = cv2.imencode(".jpg", frame)
         frame_bytes = buffer.tobytes()
-        
+
         yield (b"--frame\r\n"
                b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n")
-
 
 # Routes
 @app.route('/api/login', methods=['POST'])
@@ -359,21 +320,8 @@ def index_page():
     return render_template('index.html')
 
 @app.route('/video_feed')
+@login_required
 def video_feed():
-    # Cek token dari query parameter (untuk img tag) atau header
-    token = request.args.get('token') or request.headers.get('Authorization', '')
-    
-    if token.startswith('Bearer '):
-        token = token.split(' ')[1]
-    
-    if not token:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-    
-    # Verifikasi token (simplified)
-    # Dalam production, verifikasi token dengan lebih aman
-    if not token or len(token) < 5:
-        return jsonify({'success': False, 'message': 'Invalid token'}), 401
-    
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -458,6 +406,7 @@ def get_students_count(class_id):
     cursor.execute('SELECT COUNT(*) as count FROM students WHERE class_id = ?', (class_id,))
     row = cursor.fetchone()
     db.close()
+    
     return jsonify({'success': True, 'count': row['count']})
 
 @app.route('/api/class/<int:class_id>/attendance/today/count')

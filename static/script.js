@@ -1,140 +1,51 @@
-async function initCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-    const videoElement = document.getElementById("liveVideo")
-    if (videoElement) {
-      videoElement.srcObject = stream
+// GANTI fungsi initVideoFeed() dengan kode ini:
+function initVideoFeed() {
+    const videoFeedImg = document.getElementById("videoFeed");
+    if (videoFeedImg) {
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+        
+        if (!token) {
+            console.error("Token tidak ditemukan");
+            videoFeedImg.alt = "Token tidak tersedia";
+            return;
+        }
+        
+        // Tambahkan token sebagai query parameter
+        videoFeedImg.src = `/video_feed?token=${encodeURIComponent(token)}`;
+        
+        // Handle error jika video feed gagal
+        videoFeedImg.onerror = () => {
+            console.error("Gagal memuat video feed");
+            videoFeedImg.alt = "Video feed tidak tersedia";
+            
+            // Coba reload setelah 3 detik
+            setTimeout(() => {
+                videoFeedImg.src = `/video_feed?token=${encodeURIComponent(token)}&t=${Date.now()}`;
+            }, 3000);
+        };
+        
+        console.log("Video feed realtime diinisialisasi");
     }
-  } catch (err) {
-    console.error("Gagal mengakses kamera:", err)
-    alert("Izin kamera dibutuhkan agar live feed tampil")
-  }
 }
 
+
 document.addEventListener("DOMContentLoaded", () => {
-  // Check if user is logged in
+    const BASE_API_URL = "http://localhost:5000"
+    const user = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}")
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || null
 
-  const BASE_API_URL = "http://localhost:5000" 
-
-  const user = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}")
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token") || null
-
-  if (document.getElementById("liveVideo")) {
-    initCamera()
-  }
-
-  // Tombol ambil foto
-  const captureBtn = document.getElementById("captureBtn");
-
-  if (captureBtn) {
-    captureBtn.addEventListener("click", () => {
-      const video = document.getElementById("liveVideo");
-      const canvas = document.getElementById("snapshotCanvas");
-      const context = canvas.getContext("2d");
-
-      // Ambil frame dari video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Convert ke Base64
-      const imageData = canvas.toDataURL("image/jpeg");
-
-      // Tampilkan hasil capture
-      const capturedImagePreview = document.getElementById("capturedImagePreview");
-      capturedImagePreview.src = imageData;
-
-      // Dapatkan elemen modal dan bagian dataset
-      const datasetImage = document.getElementById("datasetImagePreview");
-      const welcomeText = document.getElementById("welcome");
-
-      // Reset state modal
-      datasetImage.style.display = "none";
-      welcomeText.style.display = "none";
-
-      // Tampilkan modal langsung
-      const modal = new bootstrap.Modal(document.getElementById("previewModal"));
-      modal.show();
-
-      let isSubmitting = false;
-
-      // Tombol Kirim Absensi
-      document.getElementById("confirmSubmit").onclick = () => {
-        if (isSubmitting) return; 
-        isSubmitting = true;
-
-        const btn = document.getElementById("confirmSubmit");
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Mengirim...';
+    // Inisialisasi video feed realtime
+    if (document.getElementById("videoFeed")) {
+        initVideoFeed();
+    }
 
 
-        datasetImage.style.display = "none";
-
-        fetch("/api/face-recognition", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${
-              localStorage.getItem("token") || sessionStorage.getItem("token")
-            }`,
-          },
-          body: JSON.stringify({ image: imageData }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success) {
-              alert(`Absensi berhasil: ${data.name} (${data.nim})`);
-
-              // Ketika gambar dataset selesai dimuat
-              datasetImage.onload = () => {
-                datasetImage.style.display = "block";
-                welcomeText.style.display = "block";
-                welcomeText.textContent = `Selamat datang, ${data.name} (${data.nim})`;
-              };
-
-              datasetImage.onerror = () => {
-                alert("Gagal memuat foto dataset.");
-              };
-
-              // Muat gambar dataset
-              datasetImage.src = `/api/dataset-image/${data.name}_${data.nim}?t=${Date.now()}`;
-
-              btn.innerHTML = '<span></span>Selesai';
-              btn.disabled = false;
-              
-              btn.addEventListener('click', function handleFinishClick() {
-                if (btn.innerText.includes('Selesai')) {
-                  const modalElement = document.getElementById('previewModal');
-                  const modalInstance = bootstrap.Modal.getInstance(modalElement);
-                  modalInstance.hide();
-                  btn.innerHTML = '<span></span>Kirim Absensi';
-
-                  // Optional: bersihkan listener setelah digunakan
-                  btn.removeEventListener('click', handleFinishClick);
-                } else {
-                  btn.disabled = false;
-                  btn.innerHTML = '<span></span>Alamaak2';
-                }
-              });
-              loadTodayAttendance();
-            } else {
-              alert("Absensi gagal: " + data.message);
-            }
-          })
-          .catch((err) => {
-            console.error("Error:", err);
-            alert("Terjadi kesalahan pada server.");
-          });
-      };
-    });
-  }
-
-
-  if (!user.id || !token) {
-    // Redirect to login page if not logged in or no token
-    window.location.href = "/"
-    return
-  }
+    // HAPUS bagian captureBtn event listener karena tidak diperlukan lagi
+    
+    if (!user.id || !token) {
+        window.location.href = "/"
+        return
+    }
 
   // Add token to all fetch requests
   const originalFetch = window.fetch
@@ -227,6 +138,11 @@ document.addEventListener("DOMContentLoaded", () => {
     })
   })
 
+  if (document.getElementById("dashboard") && !document.getElementById("dashboard").classList.contains("hidden")) {
+    loadTodayAttendance();
+    updateDashboardStats();
+  }
+
   // Initialize Flatpickr Date Picker
   if (typeof flatpickr !== "undefined") {
     const datePickerElement = document.getElementById("datePicker")
@@ -253,31 +169,176 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load today's attendance data
   function loadTodayAttendance() {
-    fetch(`/api/attendance/today`, {
-      credentials: 'include'
-    })
-      .then((response) => {
-        if (response.status === 401) {
-          // Unauthorized, redirect to login
-          window.location.href = "/login.html"
-          return null
-        }
-        return response.json()
-      })
-      .then((data) => {
-        if (data && data.success) {
-          renderAttendanceTable(data.data, "attendanceTableBody")
-          updateDashboardStats()
-        } else if (data) {
-          console.error("Error loading attendance data:", data.message)
-          showTableError("attendanceTableBody", "Gagal memuat data absensi")
-        }
-      })
-      .catch((error) => {
-        console.error("Error fetching attendance data:", error)
-        showTableError("attendanceTableBody", "Terjadi kesalahan saat memuat data")
-      })
+    console.log('loadTodayAttendance dipanggil');
+    
+    fetch(`/api/attendance/today`, { credentials: 'include' })
+        .then((response) => {
+            if (response.status === 401) {
+                window.location.href = "/"
+                return null
+            }
+            return response.json()
+        })
+        .then((data) => {
+            console.log('Response dari /api/attendance/today:', data);
+            
+            if (data && data.success) {
+                console.log('Data absensi hari ini:', data.data);
+                renderAttendanceTable(data.data, "attendanceTableBody");
+                updateDashboardStats();
+            } else if (data) {
+                console.error("Error loading attendance data:", data.message)
+                showTableError("attendanceTableBody", "Gagal memuat data absensi")
+            }
+        })
+        .catch((error) => {
+            console.error("Error fetching attendance data:", error)
+            showTableError("attendanceTableBody", "Terjadi kesalahan saat memuat data")
+        })
   }
+
+
+  // Fungsi untuk update statistik dashboard
+  function updateDashboardStats() {
+      const classId = 1; // ID kelas default, sesuaikan jika ada multiple class
+      
+      // Get total students
+      fetch(`/api/class/${classId}/students/count`, { credentials: 'include' })
+          .then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  const total = data.count || 0;
+                  
+                  // Update semua elemen total students
+                  document.getElementById('totalStudents').textContent = total;
+                  document.getElementById('totalStudentsFooter').textContent = total;
+                  
+                  console.log('Total mahasiswa:', total);
+              }
+          })
+          .catch(error => {
+              console.error('Error fetching total students:', error);
+          });
+      
+      // Get today's attendance count
+      fetch(`/api/class/${classId}/attendance/today/count`, { credentials: 'include' })
+          .then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  const present = data.count || 0;
+                  
+                  // Update semua elemen present today
+                  document.getElementById('presentToday').textContent = present;
+                  document.getElementById('presentTodayFooter').textContent = present;
+                  
+                  console.log('Hadir hari ini:', present);
+                  
+                  // Calculate and update attendance rate
+                  calculateAttendanceRate(classId);
+              }
+          })
+          .catch(error => {
+              console.error('Error fetching today attendance count:', error);
+          });
+  }
+
+  // Fungsi untuk menghitung persentase kehadiran
+  function calculateAttendanceRate(classId) {
+    Promise.all([
+        fetch(`/api/class/${classId}/students/count`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`/api/class/${classId}/attendance/today/count`, { credentials: 'include' }).then(r => r.json())
+    ])
+    .then(([studentsData, attendanceData]) => {
+        console.log('Calculate rate:', { studentsData, attendanceData });
+        
+        const total = studentsData.count || 0;
+        const present = attendanceData.count || 0;
+        
+        const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+        
+        // Update semua elemen attendance rate
+        const attendanceRateEl = document.getElementById('attendanceRate');
+        const attendanceRateFooterEl = document.getElementById('attendanceRateFooter');
+        
+        if (attendanceRateEl) attendanceRateEl.textContent = rate + '%';
+        if (attendanceRateFooterEl) attendanceRateFooterEl.textContent = rate + '%';
+        
+        console.log(`Persentase kehadiran diupdate: ${rate}% (${present}/${total})`);
+    })
+    .catch(error => {
+        console.error('Error calculating attendance rate:', error);
+    });
+  }
+
+  // Fungsi untuk render tabel absensi
+  function renderAttendanceTable(data, tableBodyId, includeDate = false) {
+      const tableBody = document.getElementById(tableBodyId);
+      
+      console.log('renderAttendanceTable called:', {
+          tableBodyId: tableBodyId,
+          tableBody: tableBody,
+          dataLength: data ? data.length : 0
+      });
+      
+      if (!tableBody) {
+          console.error(`Element dengan ID '${tableBodyId}' tidak ditemukan!`);
+          return;
+      }
+      
+      if (!data || data.length === 0) {
+          tableBody.innerHTML = `
+              <tr>
+                  <td colspan="${includeDate ? 5 : 4}" style="text-align: center; padding: 20px; color: #999;">
+                      Belum ada data absensi hari ini
+                  </td>
+              </tr>
+          `;
+          return;
+      }
+      
+      let html = '';
+      data.forEach(item => {
+          const statusClass = item.status === 'Tepat Waktu' ? 'badge-success' : 'badge-warning';
+          
+          html += `
+              <tr>
+                  ${includeDate ? `<td>${formatDate(item.date)}</td>` : ''}
+                  <td>${item.nim}</td>
+                  <td>${item.name}</td>
+                  <td>${item.time}</td>
+                  <td><span class="badge ${statusClass}">${item.status}</span></td>
+              </tr>
+          `;
+      });
+      
+      tableBody.innerHTML = html;
+      console.log(`Tabel ${tableBodyId} berhasil diupdate dengan ${data.length} baris`);
+  }
+
+  // Fungsi untuk format tanggal
+  function formatDate(dateStr) {
+    if (!dateStr) return 'N/A';
+    const [year, month, day] = dateStr.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  // Fungsi untuk show error di tabel
+  function showTableError(tableBodyId, message, colspan = 4) {
+    const tableBody = document.getElementById(tableBodyId);
+    if (!tableBody) {
+        console.error(`Element ${tableBodyId} tidak ditemukan`);
+        return;
+    }
+    
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="${colspan}" style="text-align: center; padding: 20px; color: #dc3545;">
+                <i class="fas fa-exclamation-triangle"></i> ${message}
+            </td>
+        </tr>
+    `;
+  }
+
 
   // Load attendance data by date
   function loadAttendanceByDate(date) {
@@ -331,20 +392,6 @@ document.addEventListener("DOMContentLoaded", () => {
       })
   }
 
-  // Show error in table
-  function showTableError(tableBodyId, message, colspan = 4) {
-    const tableBody = document.getElementById(tableBodyId)
-    if (!tableBody) return
-
-    tableBody.innerHTML = `
-      <tr class="hover:bg-gray-50 transition-colors duration-150">
-        <td colspan="${colspan}" class="px-6 py-4 text-center text-red-500">
-          ${message}
-        </td>
-      </tr>
-    `
-  }
-
   // Render attendance table
   function renderAttendanceTable(data, tableBodyId, showDate = false) {
     const tableBody = document.getElementById(tableBodyId)
@@ -393,47 +440,56 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Update dashboard statistics
   function updateDashboardStats() {
-    const classId = 1
-
-    // Get total students count
-    fetch(`${BASE_API_URL}/api/class/${classId}/students/count`, {
-      credentials: 'include'
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success) {
-          const totalElements = document.querySelectorAll("#totalStudents")
-          totalElements.forEach(el => {
-            el.textContent = data.count
-          })
-        }
-      })
-      .catch((error) => console.error("Error fetching student count:", error))
-
+    const classId = 1; // ID kelas default
+    
+    console.log('updateDashboardStats dipanggil');
+    
+    // Get total students
+    fetch(`/api/class/${classId}/students/count`, { credentials: 'include' })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Total students response:', data);
+            if (data.success) {
+                const total = data.count || 0;
+                
+                // Update semua elemen total students
+                const totalStudentsEl = document.getElementById('totalStudents');
+                const totalStudentsFooterEl = document.getElementById('totalStudentsFooter');
+                
+                if (totalStudentsEl) totalStudentsEl.textContent = total;
+                if (totalStudentsFooterEl) totalStudentsFooterEl.textContent = total;
+                
+                console.log('Total mahasiswa diupdate:', total);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching total students:', error);
+        });
+    
     // Get today's attendance count
-    fetch(`${BASE_API_URL}/api/class/${classId}/attendance/today/count`, {
-      credentials: 'include'
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.success) {
-          const totalStudentsElement = document.querySelector("#totalStudents")
-          const totalStudents = totalStudentsElement ? parseInt(totalStudentsElement.textContent) : 0
-          const attendanceCount = data.count
-          const percentage = totalStudents > 0 ? Math.round((attendanceCount / totalStudents) * 100) : 0
-
-          const todayElements = document.querySelectorAll("#todayAttendance")
-          todayElements.forEach(el => {
-            el.textContent = attendanceCount
-          })
-
-          const percentageElements = document.querySelectorAll("#attendancePercentage")
-          percentageElements.forEach(el => {
-            el.textContent = `(${percentage}%)`
-          })
-        }
-      })
-      .catch((error) => console.error("Error fetching attendance count:", error))
+    fetch(`/api/class/${classId}/attendance/today/count`, { credentials: 'include' })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Today attendance count response:', data);
+            if (data.success) {
+                const present = data.count || 0;
+                
+                // Update semua elemen present today
+                const presentTodayEl = document.getElementById('presentToday');
+                const presentTodayFooterEl = document.getElementById('presentTodayFooter');
+                
+                if (presentTodayEl) presentTodayEl.textContent = present;
+                if (presentTodayFooterEl) presentTodayFooterEl.textContent = present;
+                
+                console.log('Hadir hari ini diupdate:', present);
+                
+                // Calculate attendance rate
+                calculateAttendanceRate(classId);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching today attendance count:', error);
+        });
   }
 
   // Load class information
@@ -561,4 +617,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initial load
   loadTodayAttendance()
   updateDashboardStats()
+
+  setInterval(() => {
+        const dashboardPage = document.getElementById("dashboard");
+        
+        // Hanya refresh jika halaman dashboard sedang aktif/terlihat
+        if (dashboardPage && !dashboardPage.classList.contains("hidden")) {
+            loadTodayAttendance();
+            updateDashboardStats();
+        }
+    }, 5000); // 5000 ms = 5 detik
+    
+    console.log("Auto-refresh attendance diaktifkan (setiap 5 detik)");
 })
