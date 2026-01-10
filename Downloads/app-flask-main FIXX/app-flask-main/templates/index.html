@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Absensi Face Recognition</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container-fluid {
+            padding: 0;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 280px;
+            background: linear-gradient(180deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .sidebar.open {
+            transform: translateX(0);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+        }
+
+        .sidebar-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .sidebar-header h3 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-header p {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .user-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .user-info i {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        .user-info p {
+            margin: 0;
+            font-size: 0.95rem;
+        }
+
+        .nav-menu {
+            list-style: none;
+            padding: 0;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .nav-link i {
+            margin-right: 12px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 280px;
+            padding: 30px;
+            transition: margin-left 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+            }
+        }
+
+        .top-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Video Feed Styles - REALTIME */
+        .video-container {
+            position: relative;
+            max-width: 640px;
+            margin: 20px auto;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .video-stream {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #000;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(0, 255, 0, 0.85);
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .video-overlay i {
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .info-box {
+            margin-top: 20px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 10px;
+            text-align: center;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-box p {
+            margin: 0;
+            color: #495057;
+            font-size: 14px;
+        }
+
+        .info-box i {
+            color: #667eea;
+            margin-right: 8px;
+        }
+
+        /* Stats Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .stat-card p {
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        /* Table Styles */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        thead th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        tbody td {
+            padding: 15px;
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Mobile Toggle Button */
+        #mobileSidebarToggle {
+            display: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            #mobileSidebarToggle {
+                display: block;
+            }
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        select.form-control {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="fas fa-user-check"></i> Absensi</h3>
+            <p>Face Recognition System</p>
+        </div>
+
+        <div class="user-info">
+            <i class="fas fa-user-circle"></i>
+            <p id="username">Administrator</p>
+        </div>
+
+        <ul class="nav-menu">
+            <li><a href="#dashboard" class="nav-link active"><i class="fas fa-home"></i> Dashboard</a></li>
+            <li><a href="#riwayat" class="nav-link"><i class="fas fa-history"></i> Riwayat Absensi</a></li>
+            <li><a href="#profil" class="nav-link"><i class="fas fa-user"></i> Profil Kelas</a></li>
+            <li><a href="/logout" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <button id="mobileSidebarToggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <h2>Sistem Absensi Face Recognition</h2>
+            <div>
+                <span id="currentDate">Senin, 2 Mei 2025</span>
+            </div>
+        </div>
+
+        <!-- Dashboard Page -->
+        <section id="dashboard" class="page-content">
+            <h1><i class="fas fa-chart-line"></i> Dashboard</h1>
+            <p class="text-muted">Pantau kehadiran mahasiswa secara real-time</p>
+
+            <!-- Stats Cards -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <h3 id="totalStudents">0</h3>
+                    <p>Total Mahasiswa</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="presentToday">0</h3>
+                    <p>Hadir Hari Ini</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="attendanceRate">0%</h3>
+                    <p>Persentase Kehadiran</p>
+                </div>
+            </div>
+
+            <!-- Video Feed Realtime -->
+            <div class="video-container">
+                <img id="videoFeed" 
+                     class="video-stream" 
+                     alt="Live Face Recognition Feed">
+                
+                <div class="video-overlay">
+                    <i class="fas fa-circle"></i>
+                    Deteksi Wajah Realtime Aktif
+                </div>
+            </div>
+
+            <div class="info-box">
+                <p>
+                    <i class="fas fa-info-circle"></i>
+                    Sistem akan otomatis mendeteksi dan mencatat absensi Anda
+                </p>
+            </div>
+
+            <!-- Manual Attendance Form -->
+            <div style="margin-top: 40px;">
+                <h2><i class="fas fa-plus-circle"></i> Tambah Absensi Manual</h2>
+                <form id="manualAttendanceForm" style="max-width: 500px;">
+                    <div class="form-group">
+                        <label for="nimInput">NIM Mahasiswa</label>
+                        <input type="text" id="nimInput" class="form-control" placeholder="Masukkan NIM" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="statusInput">Status Kehadiran</label>
+                        <select id="statusInput" class="form-control">
+                            <option value="Tepat Waktu">Tepat Waktu</option>
+                            <option value="Terlambat">Terlambat</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check"></i> Simpan Absensi
+                    </button>
+                </form>
+            </div>
+
+            <!-- Today's Attendance Table -->
+            <div style="margin-top: 40px;">
+                <h2><i class="fas fa-list"></i> Daftar Kehadiran Hari Ini</h2>
+                <p class="text-muted" id="todayDate">Senin, 2 Mei 2025</p>
+                
+                <div class="table-container">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>NIM</th>
+                                <th>Nama</th>
+                                <th>Waktu Kedatangan</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody">
+                            <tr>
+                                <td colspan="4" style="text-align: center;">Memuat data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <strong>Total Mahasiswa:</strong> <span id="totalStudentsFooter">0</span> | 
+                    <strong>Hadir Hari Ini:</strong> <span id="presentTodayFooter">0</span> 
+                    (<span id="attendanceRateFooter">0%</span>)
+                </div>
+            </div>
+        </section>
+
+        <!-- Riwayat Absensi Page -->
+        <section id="riwayat" class="page-content hidden">
+            <h1><i class="fas fa-history"></i> Riwayat Absensi</h1>
+            <p class="text-muted">Lihat riwayat kehadiran mahasiswa</p>
+
+            <div class="form-group" style="max-width: 300px;">
+                <label for="datePicker">Filter Tanggal</label>
+                <input type="text" id="datePicker" class="form-control" placeholder="Pilih tanggal">
+            </div>
+
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>NIM</th>
+                            <th>Nama</th>
+                            <th>Waktu</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center;">Memuat data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Profil Kelas Page -->
+        <section id="profil" class="page-content hidden">
+            <h1><i class="fas fa-info-circle"></i> Profil Kelas</h1>
+            <p class="text-muted">Informasi detail kelas</p>
+
+            <div class="row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 30px;">
+                <div class="stat-card">
+                    <h4>Nama Kelas</h4>
+                    <p id="className" style="font-size: 1.2rem; margin-top: 10px;">-</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Kode Kelas</h4>
+                    <p id="classCode" style="font-size: 1.2rem; margin-top: 10px;">-</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Semester</h4>
+                    <p id="classSemester" style="font-size: 1.2rem; margin-top: 10px;">-</p>
+                </div>
+                <div class="stat-card">
+                    <h4>SKS</h4>
+                    <p id="classSks" style="font-size: 1.2rem; margin-top: 10px;">-</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Ruangan</h4>
+                    <p id="classRoom" style="font-size: 1.2rem; margin-top: 10px;">-</p>
+                </div>
+                <div class="stat-card">
+                    <h4>Kapasitas</h4>
+                    <p id="classCapacity" style="font-size: 1.2rem; margin-top: 10px;">-</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="../static/script.js"></script>
+</body>
+</html>
