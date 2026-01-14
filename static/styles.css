@@ -1,0 +1,43 @@
+/* Custom Styles */
+body {
+  font-family: "Inter", sans-serif;
+}
+
+/* Sidebar Styles */
+@media (max-width: 768px) {
+  #sidebar {
+    transform: translateX(-100%);
+  }
+
+  #sidebar.open {
+    transform: translateX(0);
+  }
+
+  #mainContent {
+    margin-left: 0;
+  }
+}
+
+/* Active Nav Link */
+.nav-link.active {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: rgb(37, 99, 235);
+  font-weight: 500;
+}
+
+/* Animations */
+.hover\:shadow-lg:hover,
+.hover\:-translate-y-1:hover {
+  transition: all 0.3s ease;
+}
+
+/* Table hover effect */
+tr.hover\:bg-gray-50:hover td {
+  transition: background-color 0.15s ease;
+}
+
+/* Blinking effect */
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
