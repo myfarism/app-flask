@@ -30,14 +30,14 @@
 
 
 document.addEventListener("DOMContentLoaded", () => {
-    const BASE_API_URL = "http://localhost:5000"
+    const BASE_API_URL = ""
     const user = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}")
     const token = localStorage.getItem("token") || sessionStorage.getItem("token") || null
 
     // Inisialisasi video feed realtime
-    if (document.getElementById("videoFeed")) {
-        initVideoFeed();
-    }
+    // if (document.getElementById("videoFeed")) {
+    //     initVideoFeed();
+    // }
 
 
     // HAPUS bagian captureBtn event listener karena tidak diperlukan lagi
