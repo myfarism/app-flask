@@ -1,0 +1,36 @@
+services:
+  flask-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flask-app
+   # restart: unless-stopped
+    user: root
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/app  # Mount SELURUH directory, bukan file-per-file
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    networks:
+      - app-network
+
+  ngrok:
+    image: ngrok/ngrok:alpine
+    container_name: ngrok
+    restart: unless-stopped
+    depends_on:
+      - flask-app
+    environment:
+      NGROK_AUTHTOKEN: "38FEQxBrN8okDgQpwY6hXz6KaV3_B8U8GyAcwtTbScuFQo84"
+    command: http flask-app:5000 --log stdout
+    ports:
+      - "4040:4040"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

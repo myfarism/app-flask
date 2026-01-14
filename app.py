@@ -42,8 +42,8 @@ last_attendance_time = {}
 
 
 detector = dlib.get_frontal_face_detector()
-sp = dlib.shape_predictor("model\shape_predictor_68_face_landmarks.dat")
-facerec = dlib.face_recognition_model_v1("model\dlib_face_recognition_resnet_model_v1.dat")
+sp = dlib.shape_predictor("model/shape_predictor_68_face_landmarks.dat")
+facerec = dlib.face_recognition_model_v1("model/dlib_face_recognition_resnet_model_v1.dat")
 
 cap = cv2.VideoCapture(0)
 
@@ -128,19 +128,28 @@ def insert_sample_data(db):
         
         # Insert sample class
         cursor.execute('''INSERT INTO classes (name, code, semester, sks, room, location, capacity, facilities, start_time) 
-                         VALUES ('Pemrograman Web Lanjut', 'PWL-2025', 'Genap 2024/2025', 3, 
-                                'Lab Komputer 3', 'Gedung D Lantai 2', 50, 'AC, Proyektor, Komputer', '07:30')''')
+                         VALUES ('Pemrograman Web', 'IFA503', 'Genap 2024/2025', 3, 
+                                'Ruang B506', 'Gedung B Lantai 5', 40, 'AC, Proyektor, Komputer', '07:30')''')
         
         # Insert sample students
         students = [
-            ('2023001', 'Ahmad Rizky', 1),
-            ('2023002', 'Siti Nurhaliza', 1),
-            ('2023003', 'Budi Santoso', 1),
-            ('2023004', 'Dewi Lestari', 1),
-            ('2023005', 'Rudi Hartono', 1),
+            ('⁠2022071028', 'Muhammad Ananta Arya', 1),
+            ('2022071031', 'Irvan Nurfauzan Saputra', 1),
+            ('2022071044', 'Rekha Inaya Putri', 1),
+            ('20222071025', 'Indah Hairunisah', 1),
+            ('2022071015', 'Ellyza Hardianty', 1),
             ('2022071068', 'Muhammad Faris Hafizh', 1),
-            ('2022071042', 'Anggi Saputri', 1)
+            ('2022071042', 'Anggi Saputri', 1),
+            ('2022071010', 'Nazhif Teggar Ranov', 1),
+            ('2022071003', 'Fitriyana Nuril Khaqqi,', 1),
+            ('2022071060', 'Arellia Agustin', 1),
+            ('2022071034', 'John Bryan Khornelius', 1),
+            ('2022071052', 'Azkaa Rahiila Hardi', 1),
+            ('2022071047', 'Revo Rahmat', 1),
+            ('2022011042', 'Nailasyifa Indraini', 1),
+            ('2023071068', 'Fadil Muhammad Prasetya', 1)
         ]
+
         
         for nim, name, class_id in students:
             cursor.execute('INSERT INTO students (nim, name, class_id) VALUES (?, ?, ?)', 
@@ -150,16 +159,16 @@ def insert_sample_data(db):
         today = datetime.now().date().isoformat()
         yesterday = (datetime.now().date().replace(day=datetime.now().day-1)).isoformat()
         
-        attendance_data = [
-            (1, 1, today, '07:45:12', 'Tepat Waktu'),
-            (2, 1, today, '07:52:34', 'Tepat Waktu'),
-            (3, 1, today, '08:15:07', 'Terlambat'),
-            (1, 1, yesterday, '08:05:47', 'Terlambat'),
-        ]
+        # attendance_data = [
+        #     (1, 1, today, '07:45:12', 'Tepat Waktu'),
+        #     (2, 1, today, '07:52:34', 'Tepat Waktu'),
+        #     (3, 1, today, '08:15:07', 'Terlambat'),
+        #     (1, 1, yesterday, '08:05:47', 'Terlambat'),
+        # ]
         
-        for student_id, class_id, date, time, status in attendance_data:
-            cursor.execute('''INSERT INTO attendance (student_id, class_id, date, time, status) 
-                            VALUES (?, ?, ?, ?, ?)''', (student_id, class_id, date, time, status))
+        # for student_id, class_id, date, time, status in attendance_data:
+        #     cursor.execute('''INSERT INTO attendance (student_id, class_id, date, time, status) 
+        #                     VALUES (?, ?, ?, ?, ?)''', (student_id, class_id, date, time, status))
         
         db.commit()
         print("Sample data has been inserted.")

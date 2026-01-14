@@ -515,10 +515,10 @@ document.addEventListener("DOMContentLoaded", () => {
             className: classInfo.name,
             classCode: classInfo.code,
             classSemester: classInfo.semester,
-            classSKS: classInfo.sks,
-            roomName: classInfo.room,
+            classSks: classInfo.sks,
+            classRoom: classInfo.room,
             roomLocation: classInfo.location,
-            roomCapacity: `${classInfo.capacity} orang`,
+            classCapacity: `${classInfo.capacity} orang`,
             roomFacilities: classInfo.facilities
           }
 
