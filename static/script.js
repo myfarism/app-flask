@@ -1,32 +1,32 @@
 // GANTI fungsi initVideoFeed() dengan kode ini:
-function initVideoFeed() {
-    const videoFeedImg = document.getElementById("videoFeed");
-    if (videoFeedImg) {
-        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+// function initVideoFeed() {
+//     const videoFeedImg = document.getElementById("videoFeed");
+//     if (videoFeedImg) {
+//         const token = localStorage.getItem("token") || sessionStorage.getItem("token");
         
-        if (!token) {
-            console.error("Token tidak ditemukan");
-            videoFeedImg.alt = "Token tidak tersedia";
-            return;
-        }
+//         if (!token) {
+//             console.error("Token tidak ditemukan");
+//             videoFeedImg.alt = "Token tidak tersedia";
+//             return;
+//         }
         
-        // Tambahkan token sebagai query parameter
-        videoFeedImg.src = `/video_feed?token=${encodeURIComponent(token)}`;
+//         // Tambahkan token sebagai query parameter
+//         videoFeedImg.src = `/video_feed?token=${encodeURIComponent(token)}`;
         
-        // Handle error jika video feed gagal
-        videoFeedImg.onerror = () => {
-            console.error("Gagal memuat video feed");
-            videoFeedImg.alt = "Video feed tidak tersedia";
+//         // Handle error jika video feed gagal
+//         videoFeedImg.onerror = () => {
+//             console.error("Gagal memuat video feed");
+//             videoFeedImg.alt = "Video feed tidak tersedia";
             
-            // Coba reload setelah 3 detik
-            setTimeout(() => {
-                videoFeedImg.src = `/video_feed?token=${encodeURIComponent(token)}&t=${Date.now()}`;
-            }, 3000);
-        };
+//             // Coba reload setelah 3 detik
+//             setTimeout(() => {
+//                 videoFeedImg.src = `/video_feed?token=${encodeURIComponent(token)}&t=${Date.now()}`;
+//             }, 3000);
+//         };
         
-        console.log("Video feed realtime diinisialisasi");
-    }
-}
+//         console.log("Video feed realtime diinisialisasi");
+//     }
+// }
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -613,6 +613,180 @@ document.addEventListener("DOMContentLoaded", () => {
   currentDateElements.forEach(element => {
     element.textContent = today.toLocaleDateString("id-ID", options)
   })
+
+  // ==================== CLIENT CAMERA FUNCTIONALITY ====================
+
+  let videoStream = null;
+  const video = document.getElementById('videoFeed');
+  const canvas = document.getElementById('canvas');
+  const startCameraBtn = document.getElementById('startCameraBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const stopCameraBtn = document.getElementById('stopCameraBtn');
+  const cameraStatus = document.getElementById('cameraStatus');
+  const captureResult = document.getElementById('captureResult');
+
+  // Start Camera Function
+  async function startCamera() {
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      
+      video.srcObject = videoStream;
+      
+      // Update UI
+      startCameraBtn.style.display = 'none';
+      captureBtn.style.display = 'inline-block';
+      stopCameraBtn.style.display = 'inline-block';
+      cameraStatus.textContent = 'Camera Active';
+      cameraStatus.parentElement.style.background = 'rgba(40, 167, 69, 0.85)';
+      
+      console.log('Camera started successfully');
+    } catch (error) {
+      console.error('Camera error:', error);
+      alert('Gagal mengakses kamera: ' + error.message);
+    }
+  }
+
+  // Stop Camera Function
+  function stopCamera() {
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+      videoStream = null;
+    }
+    
+    // Update UI
+    startCameraBtn.style.display = 'inline-block';
+    captureBtn.style.display = 'none';
+    stopCameraBtn.style.display = 'none';
+    cameraStatus.textContent = 'Camera Off';
+    cameraStatus.parentElement.style.background = 'rgba(220, 53, 69, 0.85)';
+    
+    console.log('Camera stopped');
+  }
+
+  // Capture and Send to Face Recognition API
+  async function captureAndRecognize() {
+    if (!videoStream) {
+      alert('Kamera belum aktif!');
+      return;
+    }
+    
+    // Set canvas size
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw video frame to canvas
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert to base64
+    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+    
+    // Show loading
+    captureBtn.disabled = true;
+    captureBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
+    
+    try {
+      const response = await fetch(`${BASE_API_URL}/api/face-recognition`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({ image: imageData })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Success
+        captureResult.style.display = 'block';
+        captureResult.style.background = '#d4edda';
+        captureResult.style.border = '2px solid #28a745';
+        captureResult.style.color = '#155724';
+        captureResult.innerHTML = `
+          <i class="fas fa-check-circle"></i> 
+          <strong>Absensi Berhasil!</strong><br>
+          Nama: ${data.name}<br>
+          NIM: ${data.nim}
+        `;
+        
+        // Refresh attendance table
+        loadTodayAttendance();
+        updateDashboardStats();
+        
+        // Hide result after 5 seconds
+        setTimeout(() => {
+          captureResult.style.display = 'none';
+        }, 5000);
+        
+      } else {
+        // Failed
+        captureResult.style.display = 'block';
+        captureResult.style.background = '#f8d7da';
+        captureResult.style.border = '2px solid #dc3545';
+        captureResult.style.color = '#721c24';
+        captureResult.innerHTML = `
+          <i class="fas fa-times-circle"></i> 
+          <strong>Gagal!</strong><br>
+          ${data.message || 'Wajah tidak dikenali'}
+        `;
+        
+        setTimeout(() => {
+          captureResult.style.display = 'none';
+        }, 5000);
+      }
+      
+    } catch (error) {
+      console.error('Face recognition error:', error);
+      captureResult.style.display = 'block';
+      captureResult.style.background = '#f8d7da';
+      captureResult.style.border = '2px solid #dc3545';
+      captureResult.style.color = '#721c24';
+      captureResult.innerHTML = `
+        <i class="fas fa-exclamation-triangle"></i> 
+        <strong>Error!</strong><br>
+        ${error.message}
+      `;
+    } finally {
+      captureBtn.disabled = false;
+      captureBtn.innerHTML = '<i class="fas fa-user-check"></i> Ambil Foto & Absen';
+    }
+  }
+
+  // Event Listeners for Camera Controls
+  if (startCameraBtn) {
+    startCameraBtn.addEventListener('click', startCamera);
+  }
+
+  if (stopCameraBtn) {
+    stopCameraBtn.addEventListener('click', stopCamera);
+  }
+
+  if (captureBtn) {
+    captureBtn.addEventListener('click', captureAndRecognize);
+  }
+
+  // Stop camera when leaving dashboard page
+  const navLinksForCamera = document.querySelectorAll('.nav-link');
+  navLinksForCamera.forEach(link => {
+    link.addEventListener('click', function() {
+      const targetId = this.getAttribute('href').substring(1);
+      if (targetId !== 'dashboard' && videoStream) {
+        stopCamera();
+      }
+    });
+  });
+
+  console.log('Client camera functionality initialized');
+
 
   // Initial load
   loadTodayAttendance()

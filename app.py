@@ -369,19 +369,19 @@ def index_page():
 
 @app.route('/video_feed')
 def video_feed():
-    # Cek token dari query parameter (untuk img tag) atau header
     token = request.args.get('token') or request.headers.get('Authorization', '')
-    
     if token.startswith('Bearer '):
         token = token.split(' ')[1]
     
     if not token:
         return jsonify({'success': False, 'message': 'Unauthorized'}), 401
     
-    # Verifikasi token (simplified)
-    # Dalam production, verifikasi token dengan lebih aman
-    if not token or len(token) < 5:
-        return jsonify({'success': False, 'message': 'Invalid token'}), 401
+    # Jika kamera server tidak tersedia, return error
+    if cap is None or not cap.isOpened():
+        return jsonify({
+            'success': False, 
+            'message': 'Server camera not available. Please use client camera mode.'
+        }), 503
     
     return Response(gen_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
